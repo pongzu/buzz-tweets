@@ -15,7 +15,8 @@ func main() {
 
 	flag.Parse()
 	createDir()
-
+	api := getApi()
+	getResult(api, *word, *length)
 }
 
 // create directory to save conetents of tweets
@@ -28,7 +29,7 @@ func createDir() {
 	}
 }
 
-func GetResult(api *anaconda.TwitterApi, word string, length int) {
+func getResult(api *anaconda.TwitterApi, word string, length int) {
 	var counter int
 	// get a stream filterd by the word from flag
 	stream := api.PublicStreamFilter(url.Values{
