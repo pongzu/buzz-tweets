@@ -2,74 +2,88 @@ package main
 
 import (
 	"flag"
-	"io"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
-	"strconv"
 
 	"github.com/ChimeraCoder/anaconda"
 )
 
-func main() {
+var (
+	word              = flag.String("word", "", "put a key word that you want to search")
+	number            = flag.Int("number", 10, "how many tweets do you need?")
+	consumerKey       = flag.String("consumer-key", "", "set your consumer key")
+	consumerSecret    = flag.String("consumer-secret", "", "set your consumer secret")
+	accessToken       = flag.String("access-token", "", "set your accessToken")
+	accessTokenSecret = flag.String("accessTokenSecret", "", "set your accessTokenSecret")
+)
 
-	flag.Parse()
-	createDir()
-	api := getApi()
-	getResult(api, *word, *length)
+// Client for twitter API
+type Client struct {
+	API *anaconda.TwitterApi
 }
 
-// create directory to save conetents of tweets
-func createDir() {
-	var name = "buzz_tweets"
-	if _, err := os.Stat(name); os.IsNotExist(err) {
-		if err := os.MkdirAll(name, 0755); err != nil {
-			log.Fatal(err)
-		}
+// New Creates twitter-api client
+func New(key, secret, token, tokenSecret string) *Client {
+	if key == "" {
+		key = os.Getenv("TWITTER_CONSUMER_KEY")
+	}
+	if secret == "" {
+		secret = os.Getenv("TWITTER_CONSUMER_SECRET")
+	}
+	if token == "" {
+		token = os.Getenv("TWITTER_ACCESS_TOKEN")
+	}
+	if tokenSecret == "" {
+		tokenSecret = os.Getenv("TWITTER_ACCESS_TOKEN_SECRET")
+	}
+	anaconda.SetConsumerKey(key)
+	anaconda.SetConsumerSecret(secret)
+	api := anaconda.NewTwitterApi(token, tokenSecret)
+
+	return &Client{
+		API: api,
 	}
 }
 
-func getResult(api *anaconda.TwitterApi, word string, length int) {
-	var counter int
-	// get a stream filterd by the word from flag
-	stream := api.PublicStreamFilter(url.Values{
+func main() {
+	flag.Parse()
+
+	cli := New(*consumerKey, *consumerSecret, *accessToken, *accessTokenSecret)
+	tweets := cli.GetBuzzTweet(*word, *number)
+	if len(tweets) == 0 {
+		log.Printf("buzz-tweet not found with keyword %s\n", *word)
+		os.Exit(0)
+	}
+
+	for _, tweet := range tweets {
+		fmt.Fprintln(os.Stdout, tweet.Text)
+	}
+}
+
+// GetBuzzTweet get buzz tweet
+func (cli *Client) GetBuzzTweet(word string, num int) []anaconda.Tweet {
+	// get a stream filtered by the word from flag
+	stream := cli.API.PublicStreamFilter(url.Values{
 		"track": []string{"#" + word},
 	})
 	defer stream.Stop()
 
-	var subCounter int
+	var buzzTweets []anaconda.Tweet
 	for v := range stream.C {
 		t, ok := v.(anaconda.Tweet)
 		if !ok {
-			log.Println("got unexepected value")
 			continue
 		}
-		if !judgeBuzzed(t.FavoriteCount) {
-			subCounter++
-			if subCounter > 1000 {
-				log.Println("can not findmore tweets ")
-				break
-			}
-			continue
+
+		// buzz-tweet recognize tweet with 10000 favoriteCount as "buzz-tweet"
+		if t.FavoriteCount > 10000 {
+			buzzTweets = append(buzzTweets, t)
 		}
-		// save the tweet that is liked by 10000 people
-		save(t.Text, counter)
-		counter++
+		if len(buzzTweets) == num {
+			break
+		}
 	}
-}
-
-func judgeBuzzed(count int) bool {
-	return count > 10000
-}
-
-func save(text string, counter int) {
-	fileName := "buzz_tweets/text_" + strconv.Itoa(counter) + ".txt"
-	file, err := os.Create(fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = io.WriteString(file, text)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return buzzTweets
 }
