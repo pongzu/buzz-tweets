@@ -51,9 +51,9 @@ func main() {
 	flag.Parse()
 
 	cli := New(*consumerKey, *consumerSecret, *accessToken, *accessTokenSecret)
-	tweets := cli.GetBuzzTweet(*word, *number)
+	tweets := cli.GetTweets(*word, *number)
 	if len(tweets) == 0 {
-		log.Printf("buzz-tweet not found with keyword %s\n", *word)
+		log.Printf("buzz-tweet not found with keyword %s", *word)
 		os.Exit(0)
 	}
 
@@ -63,14 +63,14 @@ func main() {
 }
 
 // GetBuzzTweet get buzz tweet
-func (cli *Client) GetBuzzTweet(word string, num int) []anaconda.Tweet {
+func (cli *Client) GetTweets(word string, num int) []anaconda.Tweet {
 	// get a stream filtered by the word from flag
 	stream := cli.API.PublicStreamFilter(url.Values{
 		"track": []string{"#" + word},
 	})
 	defer stream.Stop()
 
-	var buzzTweets []anaconda.Tweet
+	var tweets []anaconda.Tweet
 	for v := range stream.C {
 		t, ok := v.(anaconda.Tweet)
 		if !ok {
@@ -79,11 +79,11 @@ func (cli *Client) GetBuzzTweet(word string, num int) []anaconda.Tweet {
 
 		// buzz-tweet recognize tweet with 10000 favoriteCount as "buzz-tweet"
 		if t.FavoriteCount > 10000 {
-			buzzTweets = append(buzzTweets, t)
+			tweets = append(tweets, t)
 		}
-		if len(buzzTweets) == num {
+		if len(tweets) == num {
 			break
 		}
 	}
-	return buzzTweets
+	return tweets
 }
